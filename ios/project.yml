@@ -1,0 +1,51 @@
+name: PaceTracker
+options:
+  bundleIdPrefix: com.example
+configs:
+  Debug: debug
+  Release: release
+targets:
+  PaceTracker:
+    type: application
+    platform: iOS
+    deploymentTarget: '13.0'
+    sources:
+      - .
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.example.pacetracker
+      INFOPLIST_FILE: Info.plist
+    entitlements:
+      Debug: PaceTracker.entitlements
+      Release: PaceTracker.entitlements
+    capabilities:
+      healthKit: true
+      backgroundModes:
+        - workoutProcessing
+
+  PaceTrackerWatchKitExtension:
+    type: bundle
+    productType: com.apple.product-type.watchkit2-extension
+    platform: watchOS
+    deploymentTarget: '7.0'
+    sources:
+      - watch
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.example.pacetracker.watchkitextension
+    entitlements:
+      Debug: watch/PaceTrackerWatchKitExtension.entitlements
+      Release: watch/PaceTrackerWatchKitExtension.entitlements
+    capabilities:
+      healthKit: true
+      backgroundModes:
+        - workoutProcessing
+
+  PaceTrackerWatchKitApp:
+    type: watch-app
+    platform: watchOS
+    deploymentTarget: '7.0'
+    sources:
+      - watch
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.example.pacetracker.watchkitapp
+    dependencies:
+      - target: PaceTrackerWatchKitExtension
