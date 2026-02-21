@@ -185,6 +185,19 @@
         <div class="section">
             <div class="section-title">Options</div>
             <input type="number" id="tolerance" placeholder="Tolerance (sec/km)" value="5" step="1">
+            <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
+                <label for="unit" style="font-size:14px; color:#666;">Unit</label>
+                <select id="unit" style="padding:10px; border-radius:8px; border:1px solid #e0e0e0;">
+                    <option value="km" selected>Kilometers (km)</option>
+                    <option value="mi">Miles (mi)</option>
+                </select>
+            </div>
+            <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
+                <label for="voice" style="font-size:14px; color:#666;">Voice</label>
+                <input type="checkbox" id="voice" aria-label="Enable voice notifications">
+                <label for="voiceVolume" style="font-size:14px; color:#666; margin-left:6px;">Volume</label>
+                <input type="range" id="voiceVolume" min="0" max="1" step="0.1" value="1" style="width:120px;">
+            </div>
         </div>
 
         <button class="btn-primary" onclick="evaluate()">📊 Evaluate Pace</button>
@@ -229,11 +242,14 @@
             }
         }
 
-        function formatPacePerKm(secondsPerKm) {
-            const s = Math.round(secondsPerKm);
+        function formatPace(secondsPerKm, unit = 'km') {
+            // secondsPerKm is seconds per 1 km; convert if unit is miles
+            let secondsPerUnit = secondsPerKm;
+            if (unit === 'mi') secondsPerUnit = secondsPerKm * 1.60934;
+            const s = Math.round(secondsPerUnit);
             const mm = Math.floor(s / 60);
             const ss = s % 60;
-            return `${mm}:${String(ss).padStart(2, '0')} /km`;
+            return `${mm}:${String(ss).padStart(2, '0')} /${unit}`;
         }
 
         function evaluatePace(goalDistanceKm, goalTimeStr, distanceKm, elapsedStr, toleranceSecPerKm = 5) {
@@ -244,28 +260,28 @@
                 return null;
             }
 
-            const targetPaceSec = goalTime / goalDistanceKm;
-            const currentPaceSec = elapsed / distanceKm;
-            const paceGap = currentPaceSec - targetPaceSec;
+            const targetPaceSecPerKm = goalTime / goalDistanceKm;
+            const currentPaceSecPerKm = elapsed / distanceKm;
+            const paceGapSecPerKm = currentPaceSecPerKm - targetPaceSecPerKm;
 
             let status;
-            if (Math.abs(paceGap) <= toleranceSecPerKm) {
+            if (Math.abs(paceGapSecPerKm) <= toleranceSecPerKm) {
                 status = 'on pace';
-            } else if (paceGap < 0) {
+            } else if (paceGapSecPerKm < 0) {
                 status = 'ahead';
             } else {
                 status = 'behind';
             }
 
             const remaining = Math.max(goalDistanceKm - distanceKm, 0);
-            const projectedFinishSec = elapsed + remaining * currentPaceSec;
+            const projectedFinishSec = elapsed + remaining * currentPaceSecPerKm;
 
             return {
                 status: status,
-                targetPace: formatPacePerKm(targetPaceSec),
-                currentPace: formatPacePerKm(currentPaceSec),
-                paceGapSecPerKm: paceGap,
-                projectedFinish: formatTimeComponents(projectedFinishSec)
+                targetPaceSecPerKm: targetPaceSecPerKm,
+                currentPaceSecPerKm: currentPaceSecPerKm,
+                paceGapSecPerKm: paceGapSecPerKm,
+                projectedFinishSec: projectedFinishSec
             };
         }
 
@@ -281,13 +297,41 @@
                 return;
             }
 
-            const result = evaluatePace(goalDistance, goalTime, distance, elapsed, tolerance);
+            const unit = document.getElementById('unit') ? document.getElementById('unit').value : 'km';
+
+            // convert distances to km if user provided miles
+            const goalDistanceKm = unit === 'mi' ? goalDistance * 1.60934 : goalDistance;
+            const distanceKm = unit === 'mi' ? distance * 1.60934 : distance;
+
+            // tolerance entered as sec per selected unit -> convert to sec per km for internal comparison
+            let toleranceSecPerKm = tolerance;
+            if (unit === 'mi') toleranceSecPerKm = tolerance / 1.60934;
+
+            const result = evaluatePace(goalDistanceKm, goalTime, distanceKm, elapsed, toleranceSecPerKm);
             if (!result) {
                 document.getElementById('result').innerHTML = '<div class="error">❌ Invalid input — check time format (mm:ss or hh:mm:ss)</div>';
                 return;
             }
-
             const statusClass = `status-${result.status.replace(' ', '-')}`;
+
+            // Format paces according to unit
+            const targetPaceLabel = formatPace(result.targetPaceSecPerKm, unit);
+            const currentPaceLabel = formatPace(result.currentPaceSecPerKm, unit);
+
+            // pace gap: convert sec per km -> sec per selected unit for display
+            const paceGapPerUnit = unit === 'mi' ? result.paceGapSecPerKm * 1.60934 : result.paceGapSecPerKm;
+            const paceGapLabel = `${paceGapPerUnit.toFixed(1)} sec/${unit}`;
+
+            // voice notification
+            const voiceEnabled = document.getElementById('voice') ? document.getElementById('voice').checked : false;
+            const volume = document.getElementById('voiceVolume') ? parseFloat(document.getElementById('voiceVolume').value) : 1;
+            if (voiceEnabled && 'speechSynthesis' in window) {
+                if (lastSpokenStatus !== result.status) {
+                    speakStatus(result.status, unit, Math.abs(paceGapPerUnit), volume);
+                    lastSpokenStatus = result.status;
+                }
+            }
+
             document.getElementById('result').innerHTML = `
                 <div class="result">
                     <div class="result-row">
@@ -296,19 +340,19 @@
                     </div>
                     <div class="result-row">
                         <span class="result-label">Target Pace</span>
-                        <span class="result-value">${result.targetPace}</span>
+                        <span class="result-value">${targetPaceLabel}</span>
                     </div>
                     <div class="result-row">
                         <span class="result-label">Current Pace</span>
-                        <span class="result-value">${result.currentPace}</span>
+                        <span class="result-value">${currentPaceLabel}</span>
                     </div>
                     <div class="result-row">
                         <span class="result-label">Pace Gap</span>
-                        <span class="result-value">${result.paceGapSecPerKm.toFixed(1)} sec/km</span>
+                        <span class="result-value">${paceGapLabel}</span>
                     </div>
                     <div class="result-row">
                         <span class="result-label">Projected Finish</span>
-                        <span class="result-value">${result.projectedFinish}</span>
+                        <span class="result-value">${formatTimeComponents(result.projectedFinishSec)}</span>
                     </div>
                 </div>
             `;
@@ -321,6 +365,7 @@
             document.getElementById('elapsed').value = '0:00';
             document.getElementById('tolerance').value = '5';
             document.getElementById('result').innerHTML = '';
+            lastSpokenStatus = null;
         }
 
         function setExample1() {
@@ -328,6 +373,7 @@
             document.getElementById('goalTime').value = '50:00';
             document.getElementById('distance').value = '4.2';
             document.getElementById('elapsed').value = '20:30';
+            lastSpokenStatus = null;
             evaluate();
         }
 
@@ -336,11 +382,43 @@
             document.getElementById('goalTime').value = '1:45:00';
             document.getElementById('distance').value = '10';
             document.getElementById('elapsed').value = '48:00';
+            lastSpokenStatus = null;
             evaluate();
         }
 
         function testInstall() {
             alert('To add this app to your home screen:\n\n1. Tap the Share button (or menu)\n2. Tap "Add to Home Screen"\n3. Choose a name and add');
+        }
+
+        function updateUnitPlaceholders() {
+            const unit = document.getElementById('unit').value;
+            const distLabel = unit === 'mi' ? 'Distance (mi)' : 'Distance (km)';
+            const goalLabel = unit === 'mi' ? 'Distance (mi)' : 'Distance (km)';
+            const tolLabel = unit === 'mi' ? 'Tolerance (sec/mi)' : 'Tolerance (sec/km)';
+            document.getElementById('distance').placeholder = distLabel;
+            document.getElementById('goalDistance').placeholder = goalLabel;
+            document.getElementById('tolerance').placeholder = tolLabel;
+        }
+
+        const unitEl = document.getElementById('unit');
+        if (unitEl) unitEl.addEventListener('change', updateUnitPlaceholders);
+        // set initial placeholders
+        if (unitEl) updateUnitPlaceholders();
+
+        // Speech / voice notifications
+        let lastSpokenStatus = null;
+
+        function speakStatus(status, unit, paceGapPerUnit, volume = 1) {
+            if (!('speechSynthesis' in window)) return;
+            const synth = window.speechSynthesis;
+            synth.cancel();
+            let text = '';
+            if (status === 'on pace') text = 'You are on pace.';
+            else if (status === 'ahead') text = `You are ahead by ${paceGapPerUnit.toFixed(1)} seconds per ${unit}.`;
+            else text = `You are behind by ${paceGapPerUnit.toFixed(1)} seconds per ${unit}.`;
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.volume = Math.max(0, Math.min(1, volume));
+            synth.speak(utter);
         }
 
         // Allow Enter key to evaluate
