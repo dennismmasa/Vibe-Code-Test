@@ -1,5 +1,6 @@
 // Service Worker for Pace Tracker PWA
-const CACHE_NAME = 'pace-tracker-v1';
+// Bump this value when updating files to force clients to refresh cache
+const CACHE_NAME = 'pace-tracker-v2';
 const urlsToCache = [
   '/',
   '/index.html',
