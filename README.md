@@ -108,6 +108,41 @@ Now append lines as your run progresses (`distance_km,elapsed_time`) and the tra
 - `--webhook-url`: optional webhook endpoint.
 - `--json`: output each update as JSON.
 
+
+## Exact setup for *this* machine (Linux + bash)
+
+Your environment here is:
+- working directory: `/workspace/Vibe-Code-Test`
+- shell: `bash`
+
+Copy/paste this exactly:
+
+```bash
+cd /workspace/Vibe-Code-Test
+python3 --version
+python3 -m unittest discover -s tests -v
+python3 pace_tracker.py --goal-distance 10 --goal-time 50:00 --distance 4.2 --elapsed 20:30
+```
+
+Live mode on this machine:
+
+```bash
+cd /workspace/Vibe-Code-Test
+cat > run_samples.csv <<'CSV'
+1.0,5:05
+2.0,10:08
+CSV
+python3 live_tracker.py --goal-distance 10 --goal-time 50:00 --samples-file run_samples.csv --interval 2 --json
+```
+
+Then in another terminal, append updates while it runs:
+
+```bash
+cd /workspace/Vibe-Code-Test
+echo '3.0,15:10' >> run_samples.csv
+echo '4.0,20:05' >> run_samples.csv
+```
+
 ## Run tests
 
 ```bash
