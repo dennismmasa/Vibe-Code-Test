@@ -217,11 +217,11 @@
                     <option value="mi">Miles (mi)</option>
                 </select>
             </div>
-            <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
+            <div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
                 <label for="voice" style="font-size:14px; color:#666;">Voice</label>
                 <input type="checkbox" id="voice" aria-label="Enable voice notifications">
                 <label for="voiceVolume" style="font-size:14px; color:#666; margin-left:6px;">Volume</label>
-                <input type="range" id="voiceVolume" min="0" max="1" step="0.1" value="1" style="width:120px;">
+                <input type="range" id="voiceVolume" min="0" max="1" step="0.1" value="1" style="width:120px; max-width:100%; flex:1; min-width:120px;">
             </div>
             <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
                 <button id="subscribePushBtn" class="btn-secondary" onclick="promptSubscribePush()">Enable Lock-screen Notifications</button>
@@ -396,14 +396,6 @@
                 </div>
             `;
 
-            // update top live status display
-            const topBadge = document.getElementById('liveStatusBadge');
-            const topPace = document.getElementById('livePace');
-            if (topBadge) {
-                topBadge.textContent = result.status;
-                topBadge.className = `status-badge ${statusClass}`;
-            }
-            if (topPace) topPace.textContent = currentPaceLabel;
         }
 
         // --- Live tracking -------------------------------------------------
