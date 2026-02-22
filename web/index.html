@@ -188,6 +188,10 @@
                 <button id="startLiveBtn" class="btn-primary" onclick="startLive()">▶ Start Live</button>
                 <button id="stopLiveBtn" class="btn-secondary" onclick="stopLive()" style="display:none;">■ Stop</button>
                 <button id="incDistance" class="btn-secondary" onclick="incDistance()">+0.1</button>
+                <div id="liveTopStatus" style="display:flex; flex-direction:column; align-items:center; gap:6px; margin-top:6px;">
+                    <span id="liveStatusBadge" class="status-badge status-on-pace">Idle</span>
+                    <div id="livePace" style="font-size:13px; color:#333; font-weight:600;">--</div>
+                </div>
             </div>
         </div>
 
@@ -355,6 +359,15 @@
                 }
             }
 
+            // update top live status display
+            const topBadge = document.getElementById('liveStatusBadge');
+            const topPace = document.getElementById('livePace');
+            if (topBadge) {
+                topBadge.textContent = result.status;
+                topBadge.className = `status-badge ${statusClass}`;
+            }
+            if (topPace) topPace.textContent = currentPaceLabel;
+
             document.getElementById('result').innerHTML = `
                 <div class="result">
                     <div class="result-row">
@@ -379,6 +392,15 @@
                     </div>
                 </div>
             `;
+
+            // update top live status display
+            const topBadge = document.getElementById('liveStatusBadge');
+            const topPace = document.getElementById('livePace');
+            if (topBadge) {
+                topBadge.textContent = result.status;
+                topBadge.className = `status-badge ${statusClass}`;
+            }
+            if (topPace) topPace.textContent = currentPaceLabel;
         }
 
         // --- Live tracking -------------------------------------------------
@@ -478,6 +500,15 @@
                 }
             }
 
+            // update top live status display (live updates also use this)
+            const topBadge = document.getElementById('liveStatusBadge');
+            const topPace = document.getElementById('livePace');
+            if (topBadge) {
+                topBadge.textContent = result.status;
+                topBadge.className = `status-badge ${statusClass}`;
+            }
+            if (topPace) topPace.textContent = currentPaceLabel;
+
             document.getElementById('result').innerHTML = `
                 <div class="result">
                     <div class="result-row">
@@ -560,6 +591,12 @@
 
             document.getElementById('startLiveBtn').style.display = 'none';
             document.getElementById('stopLiveBtn').style.display = 'inline-block';
+            // top badge -> starting
+            const topBadge = document.getElementById('liveStatusBadge');
+            if (topBadge) {
+                topBadge.textContent = 'Starting...';
+                topBadge.className = 'status-badge status-on-pace';
+            }
         }
 
         function stopLive() {
@@ -571,6 +608,11 @@
             liveStartEpoch = null;
             document.getElementById('startLiveBtn').style.display = 'inline-block';
             document.getElementById('stopLiveBtn').style.display = 'none';
+            const topBadge = document.getElementById('liveStatusBadge');
+            if (topBadge) {
+                topBadge.textContent = 'Stopped';
+                topBadge.className = 'status-badge status-on-pace';
+            }
         }
 
         function incDistance() {
