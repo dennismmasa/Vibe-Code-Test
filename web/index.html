@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#007AFF">
+    <meta name="description" content="Pace Tracker: Track your running pace in real-time">
+    <title>Pace Tracker</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%23007AFF' width='192' height='192'/><text x='50%' y='50%' font-size='120' fill='white' text-anchor='middle' dy='.3em'>⏱</text></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%23007AFF' width='192' height='192'/><text x='50%' y='50%' font-size='120' fill='white' text-anchor='middle' dy='.3em'>⏱</text></svg>">
+    <!-- Leaflet for live map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            max-width: 400px;
+            width: 100%;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+            font-size: 28px;
+        }
+        .section {
+            margin-bottom: 25px;
+        }
+        .section-title {
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 10px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .input-group input {
+            flex: 1;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 10px;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:active {
+            background: #5568d3;
+            transform: scale(0.98);
+        }
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        .btn-secondary:active {
+            background: #e0e0e0;
+        }
+        .result {
+            background: #f9f9f9;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            border-left: 4px solid #667eea;
+        }
+        .result-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            font-size: 15px;
+        }
+        .result-row:last-child {
+            margin-bottom: 0;
+        }
+        .result-label {
+            color: #666;
+            font-weight: 500;
+        }
+        .result-value {
+            color: #333;
+            font-weight: 600;
+            text-align: right;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .status-ahead {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-on-pace {
+            background: #cce5ff;
+            color: #004085;
+        }
+        .status-behind {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .error {
+            color: #721c24;
+            background: #f8d7da;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .debug-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+        #map {
+            width: 100%;
+            height: 220px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+        }
+        .debug-section-title {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+        .debug-button {
+            font-size: 12px;
+            padding: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⏱ Pace Tracker</h1>
+
+        <!-- Top live controls + map -->
+        <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:12px;">
+            <div style="flex:1;">
+                <div id="map"></div>
+            </div>
+            <div style="width:140px; display:flex; flex-direction:column; gap:8px;">
+                <button id="startLiveBtn" class="btn-primary" onclick="startLive()">▶ Start Live</button>
+                <button id="stopLiveBtn" class="btn-secondary" onclick="stopLive()" style="display:none;">■ Stop</button>
+                <button id="incDistance" class="btn-secondary" onclick="incDistance()">+0.1</button>
+                <div id="liveTopStatus" style="display:flex; flex-direction:column; align-items:center; gap:6px; margin-top:6px;">
+                    <span id="liveStatusBadge" class="status-badge status-on-pace">Idle</span>
+                    <div id="livePace" style="font-size:13px; color:#333; font-weight:600;">--</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Goal</div>
+            <input type="number" id="goalDistance" placeholder="Distance (km)" value="10" step="0.1">
+            <input type="text" id="goalTime" placeholder="Time (mm:ss or hh:mm:ss)" value="50:00">
+        </div>
+
+        <div class="section">
+            <div class="section-title">Current</div>
+            <input type="number" id="distance" placeholder="Distance (km)" value="4.2" step="0.1">
+            <input type="text" id="elapsed" placeholder="Elapsed (mm:ss)" value="20:30">
+        </div>
+
+        <div class="section">
+            <div class="section-title">Options</div>
+            <input type="number" id="tolerance" placeholder="Tolerance (sec/km)" value="5" step="1">
+            <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
+                <label for="unit" style="font-size:14px; color:#666;">Unit</label>
+                <select id="unit" style="padding:10px; border-radius:8px; border:1px solid #e0e0e0;">
+                    <option value="km" selected>Kilometers (km)</option>
+                    <option value="mi">Miles (mi)</option>
+                </select>
+            </div>
+            <div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+                <label for="voice" style="font-size:14px; color:#666;">Voice</label>
+                <input type="checkbox" id="voice" aria-label="Enable voice notifications">
+                <label for="voiceVolume" style="font-size:14px; color:#666; margin-left:6px;">Volume</label>
+                <input type="range" id="voiceVolume" min="0" max="1" step="0.1" value="1" style="width:120px; max-width:100%; flex:1; min-width:120px;">
+            </div>
+            <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
+                <button id="subscribePushBtn" class="btn-secondary" onclick="promptSubscribePush()">Enable Lock-screen Notifications</button>
+                <button id="testNotifyBtn" class="btn-secondary" onclick="testLocalNotification()">Test Notification</button>
+            </div>
+        </div>
+
+        <button class="btn-primary" onclick="evaluate()">📊 Evaluate Pace</button>
+        <button class="btn-secondary" onclick="reset()">↻ Reset</button>
+
+        <!-- live controls moved to top (map area) -->
+
+        <div id="result"></div>
+
+        <div class="debug-section">
+            <div class="debug-section-title">Quick Test</div>
+            <button class="btn-secondary debug-button" onclick="setExample1()">Easy Run</button>
+            <button class="btn-secondary debug-button" onclick="setExample2()">Half Marathon</button>
+            <button class="btn-secondary debug-button" onclick="testInstall()">📱 Add to Home Screen</button>
+        </div>
+    </div>
+
+    <script>
+        // Register service worker for offline support and PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js').catch(err => console.log('SW registration failed:', err));
+        }
+
+        // Pace Evaluator Logic (ported from Python)
+        function parseTime(timeStr) {
+            const parts = timeStr.trim().split(':').map(p => parseFloat(p));
+            if (parts.length === 1) return parts[0];
+            if (parts.length === 2) return parts[0] * 60 + parts[1];
+            if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+            return null;
+        }
+
+        function formatTimeComponents(seconds) {
+            const s = Math.round(seconds);
+            if (s >= 3600) {
+                const hh = Math.floor(s / 3600);
+                const mm = Math.floor((s % 3600) / 60);
+                const ss = s % 60;
+                return `${hh}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+            } else {
+                const mm = Math.floor(s / 60);
+                const ss = s % 60;
+                return `${mm}:${String(ss).padStart(2, '0')}`;
+            }
+        }
+
+        function formatPace(secondsPerKm, unit = 'km') {
+            // secondsPerKm is seconds per 1 km; convert if unit is miles
+            let secondsPerUnit = secondsPerKm;
+            if (unit === 'mi') secondsPerUnit = secondsPerKm * 1.60934;
+            const s = Math.round(secondsPerUnit);
+            const mm = Math.floor(s / 60);
+            const ss = s % 60;
+            return `${mm}:${String(ss).padStart(2, '0')} /${unit}`;
+        }
+
+        function evaluatePace(goalDistanceKm, goalTimeStr, distanceKm, elapsedStr, toleranceSecPerKm = 5) {
+            const goalTime = parseTime(goalTimeStr);
+            const elapsed = parseTime(elapsedStr);
+
+            if (!goalTime || !elapsed || goalDistanceKm <= 0 || distanceKm <= 0) {
+                return null;
+            }
+
+            const targetPaceSecPerKm = goalTime / goalDistanceKm;
+            const currentPaceSecPerKm = elapsed / distanceKm;
+            const paceGapSecPerKm = currentPaceSecPerKm - targetPaceSecPerKm;
+
+            let status;
+            if (Math.abs(paceGapSecPerKm) <= toleranceSecPerKm) {
+                status = 'on pace';
+            } else if (paceGapSecPerKm < 0) {
+                status = 'ahead';
+            } else {
+                status = 'behind';
+            }
+
+            const remaining = Math.max(goalDistanceKm - distanceKm, 0);
+            const projectedFinishSec = elapsed + remaining * currentPaceSecPerKm;
+
+            return {
+                status: status,
+                targetPaceSecPerKm: targetPaceSecPerKm,
+                currentPaceSecPerKm: currentPaceSecPerKm,
+                paceGapSecPerKm: paceGapSecPerKm,
+                projectedFinishSec: projectedFinishSec
+            };
+        }
+
+        function evaluate() {
+            const goalDistance = parseFloat(document.getElementById('goalDistance').value);
+            const goalTime = document.getElementById('goalTime').value;
+            const distance = parseFloat(document.getElementById('distance').value);
+            const elapsed = document.getElementById('elapsed').value;
+            const tolerance = parseFloat(document.getElementById('tolerance').value);
+
+            if (!goalDistance || !goalTime || !distance || !elapsed) {
+                document.getElementById('result').innerHTML = '<div class="error">❌ Please fill in all fields</div>';
+                return;
+            }
+
+            const unit = document.getElementById('unit') ? document.getElementById('unit').value : 'km';
+
+            // convert distances to km if user provided miles
+            const goalDistanceKm = unit === 'mi' ? goalDistance * 1.60934 : goalDistance;
+            const distanceKm = unit === 'mi' ? distance * 1.60934 : distance;
+
+            // tolerance entered as sec per selected unit -> convert to sec per km for internal comparison
+            let toleranceSecPerKm = tolerance;
+            if (unit === 'mi') toleranceSecPerKm = tolerance / 1.60934;
+
+            const result = evaluatePace(goalDistanceKm, goalTime, distanceKm, elapsed, toleranceSecPerKm);
+            if (!result) {
+                document.getElementById('result').innerHTML = '<div class="error">❌ Invalid input — check time format (mm:ss or hh:mm:ss)</div>';
+                return;
+            }
+            const statusClass = `status-${result.status.replace(' ', '-')}`;
+
+            // Format paces according to unit
+            const targetPaceLabel = formatPace(result.targetPaceSecPerKm, unit);
+            const currentPaceLabel = formatPace(result.currentPaceSecPerKm, unit);
+
+            // pace gap: convert sec per km -> sec per selected unit for display
+            const paceGapPerUnit = unit === 'mi' ? result.paceGapSecPerKm * 1.60934 : result.paceGapSecPerKm;
+            const paceGapLabel = `${paceGapPerUnit.toFixed(1)} sec/${unit}`;
+
+            // voice notification
+            const voiceEnabled = document.getElementById('voice') ? document.getElementById('voice').checked : false;
+            const volume = document.getElementById('voiceVolume') ? parseFloat(document.getElementById('voiceVolume').value) : 1;
+            if (voiceEnabled && 'speechSynthesis' in window) {
+                if (lastSpokenStatus !== result.status) {
+                    speakStatus(result.status, unit, Math.abs(paceGapPerUnit), volume);
+                    lastSpokenStatus = result.status;
+                }
+            }
+
+            // update top live status display
+            const topBadge = document.getElementById('liveStatusBadge');
+            const topPace = document.getElementById('livePace');
+            if (topBadge) {
+                topBadge.textContent = result.status;
+                topBadge.className = `status-badge ${statusClass}`;
+            }
+            if (topPace) topPace.textContent = currentPaceLabel;
+
+            document.getElementById('result').innerHTML = `
+                <div class="result">
+                    <div class="result-row">
+                        <span class="result-label">Status</span>
+                        <span class="result-value"><span class="status-badge ${statusClass}">${result.status}</span></span>
+                    </div>
+                    <div class="result-row">
+                        <span class="result-label">Target Pace</span>
+                        <span class="result-value">${targetPaceLabel}</span>
+                    </div>
+                    <div class="result-row">
+                        <span class="result-label">Current Pace</span>
+                        <span class="result-value">${currentPaceLabel}</span>
+                    </div>
+                    <div class="result-row">
+                        <span class="result-label">Pace Gap</span>
+                        <span class="result-value">${paceGapLabel}</span>
+                    </div>
+                    <div class="result-row">
+                        <span class="result-label">Projected Finish</span>
+                        <span class="result-value">${formatTimeComponents(result.projectedFinishSec)}</span>
+                    </div>
+                </div>
+            `;
+
+        }
+
+        // --- Live tracking -------------------------------------------------
+        let watchId = null;
+        let liveTimerId = null;
+        let liveStartEpoch = null;
+        let liveInitialElapsed = 0;
+        let liveDistanceKm = 0;
+        let lastPosition = null;
+        // Map & tracking layers (Leaflet)
+        let map = null;
+        let trackMarker = null;
+        let trackPolyline = null;
+        let trackLatLngs = [];
+
+        function initMap() {
+            if (typeof L === 'undefined') return;
+            try {
+                map = L.map('map', { zoomControl: false, attributionControl: false }).setView([0, 0], 2);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19
+                }).addTo(map);
+            } catch (e) {
+                console.warn('Leaflet init failed', e);
+            }
+        }
+
+        function haversineKm(a, b) {
+            const toRad = v => v * Math.PI / 180;
+            const R = 6371; // km
+            const dLat = toRad(b.latitude - a.latitude);
+            const dLon = toRad(b.longitude - a.longitude);
+            const lat1 = toRad(a.latitude);
+            const lat2 = toRad(b.latitude);
+            const sinDlat = Math.sin(dLat/2);
+            const sinDlon = Math.sin(dLon/2);
+            const h = sinDlat*sinDlat + Math.cos(lat1)*Math.cos(lat2)*sinDlon*sinDlon;
+            const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1-h));
+            return R * c;
+        }
+
+        function computePaceNumeric(goalDistanceKm, goalTimeSec, distanceKm, elapsedSec, toleranceSecPerKm = 5) {
+            if (!goalTimeSec || !elapsedSec || !goalDistanceKm || !distanceKm) return null;
+            const targetPaceSecPerKm = goalTimeSec / goalDistanceKm;
+            const currentPaceSecPerKm = elapsedSec / distanceKm;
+            const paceGapSecPerKm = currentPaceSecPerKm - targetPaceSecPerKm;
+            let status;
+            if (Math.abs(paceGapSecPerKm) <= toleranceSecPerKm) status = 'on pace';
+            else if (paceGapSecPerKm < 0) status = 'ahead';
+            else status = 'behind';
+            const remaining = Math.max(goalDistanceKm - distanceKm, 0);
+            const projectedFinishSec = elapsedSec + remaining * currentPaceSecPerKm;
+            return {
+                status,
+                targetPaceSecPerKm,
+                currentPaceSecPerKm,
+                paceGapSecPerKm,
+                projectedFinishSec
+            };
+        }
+
+        function updateLiveResult(elapsedSec, distanceKm) {
+            const goalDistance = parseFloat(document.getElementById('goalDistance').value);
+            const goalTime = document.getElementById('goalTime').value;
+            const tolerance = parseFloat(document.getElementById('tolerance').value) || 5;
+            const unit = document.getElementById('unit') ? document.getElementById('unit').value : 'km';
+            const goalTimeSec = parseTime(goalTime);
+            const goalDistanceKm = unit === 'mi' ? (goalDistance * 1.60934) : goalDistance;
+            const tolPerKm = unit === 'mi' ? tolerance / 1.60934 : tolerance;
+
+            // update visible elapsed and distance inputs for user feedback
+            document.getElementById('elapsed').value = formatTimeComponents(elapsedSec);
+            // show distance in selected unit
+            const displayDistance = unit === 'mi' ? (distanceKm / 1.60934) : distanceKm;
+            document.getElementById('distance').value = displayDistance.toFixed(2);
+
+            if (distanceKm <= 0) {
+                document.getElementById('result').innerHTML = '<div class="result"><div class="result-row"><span class="result-label">Status</span><span class="result-value">Waiting for distance...</span></div></div>';
+                return;
+            }
+
+            const result = computePaceNumeric(goalDistanceKm, goalTimeSec, distanceKm, elapsedSec, tolPerKm);
+            if (!result) return;
+
+            const statusClass = `status-${result.status.replace(' ', '-')}`;
+            const targetPaceLabel = formatPace(result.targetPaceSecPerKm, unit);
+            const currentPaceLabel = formatPace(result.currentPaceSecPerKm, unit);
+            const paceGapPerUnit = unit === 'mi' ? result.paceGapSecPerKm * 1.60934 : result.paceGapSecPerKm;
+            const paceGapLabel = `${paceGapPerUnit.toFixed(1)} sec/${unit}`;
+
+            const voiceEnabled = document.getElementById('voice') ? document.getElementById('voice').checked : false;
+            const volume = document.getElementById('voiceVolume') ? parseFloat(document.getElementById('voiceVolume').value) : 1;
+            if (voiceEnabled && 'speechSynthesis' in window) {
+                if (lastSpokenStatus !== result.status) {
+                    speakStatus(result.status, unit, Math.abs(paceGapPerUnit), volume);
+                    lastSpokenStatus = result.status;
+                }
+            }
+
+            // update top live status display (live updates also use this)
+            const topBadge = document.getElementById('liveStatusBadge');
+            const topPace = document.getElementById('livePace');
+            if (topBadge) {
+                topBadge.textContent = result.status;
+                topBadge.className = `status-badge ${statusClass}`;
+            }
+            if (topPace) topPace.textContent = currentPaceLabel;
+
+            document.getElementById('result').innerHTML = `
+                <div class="result">
+                    <div class="result-row">
+                        <span class="result-label">Status</span>
+                        <span class="result-value"><span class="status-badge ${statusClass}">${result.status}</span></span>
+                    </div>
+                    <div class="result-row">
+                        <span class="result-label">Target Pace</span>
+                        <span class="result-value">${targetPaceLabel}</span>
+                    </div>
+                    <div class="result-row">
+                        <span class="result-label">Current Pace</span>
+                        <span class="result-value">${currentPaceLabel}</span>
+                    </div>
+                    <div class="result-row">
+                        <span class="result-label">Pace Gap</span>
+                        <span class="result-value">${paceGapLabel}</span>
+                    </div>
+                    <div class="result-row">
+                        <span class="result-label">Projected Finish</span>
+                        <span class="result-value">${formatTimeComponents(result.projectedFinishSec)}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function startLive() {
+            if (!('geolocation' in navigator)) {
+                alert('Geolocation not available in this browser. Use +0.1 button to update distance manually.');
+            }
+            // initialize from current inputs
+            liveInitialElapsed = parseTime(document.getElementById('elapsed').value) || 0;
+            const startingDistance = parseFloat(document.getElementById('distance').value) || 0;
+            const unit = document.getElementById('unit') ? document.getElementById('unit').value : 'km';
+            liveDistanceKm = unit === 'mi' ? startingDistance * 1.60934 : startingDistance;
+            liveStartEpoch = Date.now();
+            // setup geolocation watch
+            if ('geolocation' in navigator) {
+                watchId = navigator.geolocation.watchPosition((pos) => {
+                    const p = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+                    const latlng = [pos.coords.latitude, pos.coords.longitude];
+                    if (lastPosition) {
+                        const d = haversineKm(lastPosition, p);
+                        // filter out bad jumps
+                        if (d > 0 && d < 1) {
+                            liveDistanceKm += d;
+                        }
+                    } else {
+                        // first fix: center map
+                        if (map) {
+                            map.setView(latlng, 16);
+                        }
+                    }
+
+                    // update map marker and polyline
+                    if (typeof L !== 'undefined' && map) {
+                        if (!trackMarker) {
+                            trackMarker = L.marker(latlng).addTo(map);
+                            trackLatLngs = [latlng];
+                            trackPolyline = L.polyline(trackLatLngs, { color: '#e55353' }).addTo(map);
+                        } else {
+                            trackMarker.setLatLng(latlng);
+                            trackLatLngs.push(latlng);
+                            trackPolyline.setLatLngs(trackLatLngs);
+                        }
+                    }
+
+                    lastPosition = p;
+                }, (err) => {
+                    console.warn('Position error', err);
+                }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 });
+            }
+
+            // start timer to update UI every second
+            liveTimerId = setInterval(() => {
+                const now = Date.now();
+                const elapsedSec = liveInitialElapsed + (now - liveStartEpoch) / 1000;
+                updateLiveResult(elapsedSec, liveDistanceKm);
+            }, 1000);
+
+            document.getElementById('startLiveBtn').style.display = 'none';
+            document.getElementById('stopLiveBtn').style.display = 'inline-block';
+            // top badge -> starting
+            const topBadge = document.getElementById('liveStatusBadge');
+            if (topBadge) {
+                topBadge.textContent = 'Starting...';
+                topBadge.className = 'status-badge status-on-pace';
+            }
+        }
+
+        function stopLive() {
+            if (watchId) navigator.geolocation.clearWatch(watchId);
+            watchId = null;
+            if (liveTimerId) clearInterval(liveTimerId);
+            liveTimerId = null;
+            lastPosition = null;
+            liveStartEpoch = null;
+            document.getElementById('startLiveBtn').style.display = 'inline-block';
+            document.getElementById('stopLiveBtn').style.display = 'none';
+            const topBadge = document.getElementById('liveStatusBadge');
+            if (topBadge) {
+                topBadge.textContent = 'Stopped';
+                topBadge.className = 'status-badge status-on-pace';
+            }
+        }
+
+        function incDistance() {
+            // add 0.1 unit to distance (unit-aware)
+            const unit = document.getElementById('unit') ? document.getElementById('unit').value : 'km';
+            const deltaKm = unit === 'mi' ? 0.1 * 1.60934 : 0.1;
+            liveDistanceKm = (liveDistanceKm || 0) + deltaKm;
+            // update displayed distance input
+            const displayDistance = unit === 'mi' ? (liveDistanceKm / 1.60934) : liveDistanceKm;
+            document.getElementById('distance').value = displayDistance.toFixed(2);
+        }
+
+        function reset() {
+            document.getElementById('goalDistance').value = '10';
+            document.getElementById('goalTime').value = '50:00';
+            document.getElementById('distance').value = '0';
+            document.getElementById('elapsed').value = '0:00';
+            document.getElementById('tolerance').value = '5';
+            document.getElementById('result').innerHTML = '';
+            lastSpokenStatus = null;
+        }
+
+        function setExample1() {
+            document.getElementById('goalDistance').value = '10';
+            document.getElementById('goalTime').value = '50:00';
+            document.getElementById('distance').value = '4.2';
+            document.getElementById('elapsed').value = '20:30';
+            lastSpokenStatus = null;
+            evaluate();
+        }
+
+        function setExample2() {
+            document.getElementById('goalDistance').value = '21.1';
+            document.getElementById('goalTime').value = '1:45:00';
+            document.getElementById('distance').value = '10';
+            document.getElementById('elapsed').value = '48:00';
+            lastSpokenStatus = null;
+            evaluate();
+        }
+
+        function testInstall() {
+            alert('To add this app to your home screen:\n\n1. Tap the Share button (or menu)\n2. Tap "Add to Home Screen"\n3. Choose a name and add');
+        }
+
+        function updateUnitPlaceholders() {
+            const unit = document.getElementById('unit').value;
+            const distLabel = unit === 'mi' ? 'Distance (mi)' : 'Distance (km)';
+            const goalLabel = unit === 'mi' ? 'Distance (mi)' : 'Distance (km)';
+            const tolLabel = unit === 'mi' ? 'Tolerance (sec/mi)' : 'Tolerance (sec/km)';
+            document.getElementById('distance').placeholder = distLabel;
+            document.getElementById('goalDistance').placeholder = goalLabel;
+            document.getElementById('tolerance').placeholder = tolLabel;
+        }
+
+        const unitEl = document.getElementById('unit');
+        if (unitEl) unitEl.addEventListener('change', updateUnitPlaceholders);
+        // set initial placeholders
+        if (unitEl) updateUnitPlaceholders();
+
+        // initialize map when possible
+        initMap();
+
+        // Speech / voice notifications
+        let lastSpokenStatus = null;
+
+        function speakStatus(status, unit, paceGapPerUnit, volume = 1) {
+            if (!('speechSynthesis' in window)) return;
+            const synth = window.speechSynthesis;
+            synth.cancel();
+            let text = '';
+            if (status === 'on pace') text = 'You are on pace.';
+            else if (status === 'ahead') text = `You are ahead by ${paceGapPerUnit.toFixed(1)} seconds per ${unit}.`;
+            else text = `You are behind by ${paceGapPerUnit.toFixed(1)} seconds per ${unit}.`;
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.volume = Math.max(0, Math.min(1, volume));
+            synth.speak(utter);
+        }
+
+        // Allow Enter key to evaluate
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') evaluate();
+        });
+
+        // --- Web Push subscription helpers ---------------------------------
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+        }
+
+        async function promptSubscribePush() {
+            if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+                alert('Notifications are not supported in this browser.');
+                return;
+            }
+
+            if (!('PushManager' in window)) {
+                alert('Web Push is not available in this browser context. On iPhone, this usually requires Safari, Add to Home Screen, HTTPS, and a supported iOS version.');
+                return;
+            }
+
+            const grant = await Notification.requestPermission();
+            if (grant !== 'granted') {
+                alert('Notification permission denied.');
+                return;
+            }
+
+            const vapidKey = prompt('Paste your VAPID public key (URL-safe base64).');
+            if (!vapidKey) return;
+
+            const serverUrl = prompt('Paste your server subscribe endpoint URL (POST). Example: https://example.com/subscribe');
+            if (!serverUrl) return;
+
+            try {
+                const reg = await navigator.serviceWorker.ready;
+                const sub = await reg.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(vapidKey)
+                });
+
+                // send subscription to your server to save and use for push
+                await fetch(serverUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(sub)
+                });
+
+                alert('Subscribed for push notifications. Your server can now send pushes to this device.');
+            } catch (err) {
+                console.error('Push subscription failed', err);
+                alert('Subscription failed: ' + err.message);
+            }
+        }
+
+        async function testLocalNotification() {
+            if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+                alert('Notifications are not supported in this browser.');
+                return;
+            }
+
+            let permission = Notification.permission;
+            if (permission !== 'granted') {
+                permission = await Notification.requestPermission();
+            }
+
+            if (permission !== 'granted') {
+                alert('Notification permission not granted.');
+                return;
+            }
+
+            try {
+                const reg = await navigator.serviceWorker.ready;
+                await reg.showNotification('Pace Tracker Test', {
+                    body: 'Notifications are working on this device.',
+                    tag: 'pace-tracker-test'
+                });
+                alert('Test notification sent. Lock your phone to verify lock-screen behavior.');
+            } catch (err) {
+                console.error('Test notification failed', err);
+                alert('Test notification failed: ' + err.message);
+            }
+        }
+    </script>
+</body>
+</html>
